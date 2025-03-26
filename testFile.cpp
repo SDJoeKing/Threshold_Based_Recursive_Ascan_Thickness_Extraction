@@ -8,8 +8,6 @@ const uint16_t dataLength = 10000;
 const float vel_water = 1480;
 const float pulseWidth = 4.0;
 
-
-
 //////////////////////////////////////////////////////////////////////////////
 float argmax(const float* arr, uint16_t size)
 {   
@@ -124,6 +122,51 @@ float thickCal(const float *arr,  float velocity, float fs, float id, float targ
     return (gateB - gateA) / 2.0 / fs * velocity *1000;
 }
 
+typedef struct AscanFeatures
+{
+    float max;
+    float min;
+    float mean;
+    float std;
+    float rms;
+};
+
+//@brief C function to output parameters of input Asan
+//@param arr Ptr to the float array containing ABSOLUTE Ascan data; features AscanFeatures struct containing calculated Ascan features
+// 
+void getAscanFeatures(const float* arr, AscanFeatures &features)
+{   
+    float _tempMax = 0;
+    float _tempMin = 0;
+    float _tempSum = 0;
+    float _tempRMS = 0;
+    float _tempStd = 0;
+
+    for(size_t i = 0; i< dataLength; i++)
+    {
+        if(_tempMax <= arr[i])
+            _tempMax = arr[i];
+        if(_tempMin >= arr[i])
+            _tempMin = arr[i];
+        
+        _tempRMS+=arr[i]*arr[i];
+        _tempSum+=arr[i];
+    }
+
+    features.max = _tempMax;
+    features.min = _tempMin;
+    features.rms = sqrtf(_tempRMS / dataLength);
+    features.mean = _tempSum / dataLength;
+
+    for(size_t i=0; i< dataLength; i++)
+    {
+         _tempStd += powf(arr[i] - features.mean, 2); 
+    }
+
+    features.std = sqrtf(_tempStd / (dataLength - 1));
+ 
+}
+
  
 int main(int args, char** argc)
 {
@@ -133,6 +176,8 @@ int main(int args, char** argc)
     float id = 150;
     float targetThickness = 5;
     float _thres = 0.1;
+
+    AscanFeatures features;
 
     if(args > 1)
     {
@@ -155,9 +200,16 @@ int main(int args, char** argc)
             i = fabs(i);
         
         file.close();
+        
+        getAscanFeatures(data, features);
 
         std::cout << thickCal(data, vel, fs, id, targetThickness, _thres) << std::endl;
-         
+        std::cout << "Ascan Features: \n"
+                  << "Max: " << features.max << '\n'
+                  << "Min: " << features.min << '\n'
+                  << "Mean: " << features.mean << '\n'
+                  << "Std: " << features.std << '\n'
+                  << "RMS: " << features.rms << '\n';
     }
 
     return 0;
