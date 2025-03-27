@@ -7,13 +7,21 @@ const uint16_t postLockSample = 3;
 const uint16_t dataLength = 10000;
 const float vel_water = 1480;
 const float pulseWidth = 4.0;
- 
+bool on = 1;
+
+template<typename T>
+void log(std::string msg, T value, bool on)
+{   
+    if(on)
+        std::cout << msg << " : " << value << std::endl;
+}
+
 
 //////////////////////////////////////////////////////////////////////////////
-float argmax(const float* arr, uint16_t size)
+float argmax(const float* arr, uint16_t startPoint, uint16_t size)
 {   
     float tempMax = 0;
-    for(size_t i = 0; i< size; i++)
+    for(size_t i = startPoint; i< size; i++)
     {
         if(*(arr+i) >= tempMax)
             tempMax = *(arr+i); 
@@ -84,21 +92,24 @@ float thickCal(const float *arr,  float velocity, float fs, float id, float targ
 {
 
     // 0. preparation calculation
-    float maxValue = argmax(arr, dataLength / 2); // we know for certain the peak value is within the first half.
-    float threshold = _thres * maxValue;
-
     uint16_t waterGap = id/1000 / vel_water * fs;
     uint16_t targetThickDataPoint = targetThick/1000 * 2 / velocity * fs;
+    float maxValue = argmax(arr, waterGap, dataLength);  
+    float threshold = _thres * maxValue;
 
+    log("maxValue", maxValue, on);
+    log("threshold", threshold, on);
 
     // 1. front wall with waterGap data points margin in the beginning
     // uint16_t _front = argFirstLarger(arr, waterGap, dataLength, threshold);  
    
     uint16_t gateA_f = argFirstLarger(arr, waterGap, dataLength, threshold);
+    log("gateA_f", gateA_f, on);
     if(gateA_f == 0)
         return -1;
 
     uint16_t gateA_b = argFirstSmaller(arr, gateA_f, gateA_f + targetThickDataPoint, threshold);
+    log("gateA_b", gateA_b, on);
     if(gateA_b == 0)
         return -2;
 
@@ -107,12 +118,14 @@ float thickCal(const float *arr,  float velocity, float fs, float id, float targ
 
     // 2. find backwall
     uint16_t margin = gateA_b + (pulseWidth*2/1000 / velocity * fs); // margin of pulse, i.e. minimum resolution of scan
- 
+    
     uint16_t gateB_f = argFirstLarger(arr, margin, margin + targetThickDataPoint, threshold);
+    log("gateB_f", gateB_f, on);
     if(gateB_f == 0)
         return -3;
-
+     
     uint16_t gateB_b = argFirstSmaller(arr,gateB_f, margin + targetThickDataPoint, threshold);
+    log("gateB_b", gateB_b, on);
     if(gateB_b == 0)
         return -4;
 
@@ -207,8 +220,8 @@ int main(int args, char** argc)
         
         getAscanFeatures(data, features,fs,id);
 
-        std::cout << thickCal(data, vel, fs, id, targetThickness, _thres) << std::endl;
-        std::cout << "Ascan Features: \n"
+        std::cout << "\nThickness: "<< thickCal(data, vel, fs, id, targetThickness, _thres) << std::endl;
+        std::cout << "\nAscan Features: \n"
                   << "Max: " << features.max << '\n'
                   << "Min: " << features.min << '\n'
                   << "Mean: " << features.mean << '\n'
