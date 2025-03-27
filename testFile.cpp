@@ -7,6 +7,7 @@ const uint16_t postLockSample = 3;
 const uint16_t dataLength = 10000;
 const float vel_water = 1480;
 const float pulseWidth = 4.0;
+ 
 
 //////////////////////////////////////////////////////////////////////////////
 float argmax(const float* arr, uint16_t size)
@@ -95,11 +96,11 @@ float thickCal(const float *arr,  float velocity, float fs, float id, float targ
    
     uint16_t gateA_f = argFirstLarger(arr, waterGap, dataLength, threshold);
     if(gateA_f == 0)
-        return 0.1;
+        return -1;
 
     uint16_t gateA_b = argFirstSmaller(arr, gateA_f, gateA_f + targetThickDataPoint, threshold);
     if(gateA_b == 0)
-        return 0.2;
+        return -2;
 
     uint16_t gateA = (gateA_f + gateA_b) / 2;
 
@@ -109,11 +110,11 @@ float thickCal(const float *arr,  float velocity, float fs, float id, float targ
  
     uint16_t gateB_f = argFirstLarger(arr, margin, margin + targetThickDataPoint, threshold);
     if(gateB_f == 0)
-        return 0.3;
+        return -3;
 
     uint16_t gateB_b = argFirstSmaller(arr,gateB_f, margin + targetThickDataPoint, threshold);
     if(gateB_b == 0)
-        return 0.4;
+        return -4;
 
     uint16_t gateB = (gateB_f + gateB_b)/2;
     
@@ -134,15 +135,18 @@ typedef struct AscanFeatures
 //@brief C function to output parameters of input Asan
 //@param arr Ptr to the float array containing ABSOLUTE Ascan data; features AscanFeatures struct containing calculated Ascan features
 // 
-void getAscanFeatures(const float* arr, AscanFeatures &features)
+void getAscanFeatures(const float* arr, AscanFeatures &features, float fs, float id)
 {   
+
+    uint16_t waterGap = id/1000 / vel_water * fs;
+
     float _tempMax = 0;
     float _tempMin = 0;
     float _tempSum = 0;
     float _tempRMS = 0;
     float _tempStd = 0;
 
-    for(size_t i = 0; i< dataLength; i++)
+    for(size_t i = waterGap; i< dataLength; i++)
     {
         if(_tempMax <= arr[i])
             _tempMax = arr[i];
@@ -191,7 +195,7 @@ int main(int args, char** argc)
             _thres = atof(argc[6]);
         }
         
-        float data[10000]{0};
+        float data[dataLength]{0};
 
         std::ifstream file(path, std::ios::binary);  
         file.read(reinterpret_cast<char*>(data), dataLength*sizeof(float));
@@ -201,7 +205,7 @@ int main(int args, char** argc)
         
         file.close();
         
-        getAscanFeatures(data, features);
+        getAscanFeatures(data, features,fs,id);
 
         std::cout << thickCal(data, vel, fs, id, targetThickness, _thres) << std::endl;
         std::cout << "Ascan Features: \n"
